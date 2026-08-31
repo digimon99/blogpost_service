@@ -1,0 +1,213 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action to perform. Admin: register_user, link_user, list_users, revoke_user, regenerate_key, get_status, unlink_user. Posts: create_post, list_posts, list_channels, get_postdetails, update_post, delete_post. Channels: create_channel, update_channel, remove_channel. Apps: publish_app (upsert by URL), update_app (alias for publish_app), delete_app (requires url or app_id).",
+      "enum": [
+        "register_user",
+        "link_user",
+        "list_users",
+        "revoke_user",
+        "regenerate_key",
+        "get_status",
+        "unlink_user",
+        "create_post",
+        "list_posts",
+        "list_channels",
+        "get_postdetails",
+        "update_post",
+        "delete_post",
+        "create_channel",
+        "update_channel",
+        "remove_channel",
+        "publish_app",
+        "update_app",
+        "delete_app"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "description": "REQUIRED for publish_app. App display name (e.g. 'JSON Formatter')."
+    },
+    "user_api_key": {
+      "type": "string",
+      "description": "User API key from NXplace (required for link_user). Get from nxplace account settings."
+    },
+    "email": {
+      "type": "string",
+      "description": "Email address for register_user action. If omitted, uses agent's email from agent_email skill."
+    },
+    "username": {
+      "type": "string",
+      "description": "Optional username for register_user action."
+    },
+    "full_name": {
+      "type": "string",
+      "description": "Optional full name for register_user action."
+    },
+    "nxplace_user_id": {
+      "type": "string",
+      "description": "NXplace user ID for revoke_user/regenerate_key. If omitted, uses current agent's stored user ID."
+    },
+    "title": {
+      "type": "string",
+      "description": "REQUIRED for create_post. Title of the post (max 200 chars). If user gives a topic/idea, craft an appropriate title."
+    },
+    "article": {
+      "type": "string",
+      "description": "Article body in Markdown (min 100 chars, max 100000 chars). REQUIRED for create_post (or use article_file). Must be substantive content, not placeholder text."
+    },
+    "article_file": {
+      "type": "string",
+      "description": "PREFERRED for long articles: workspace path to a markdown file (e.g. 'blogs/lion-rock-daily/2026-08-16-pm/content.md'). The skill reads the file server-side \u2014 use this instead of article whenever the content already exists as a workspace file (especially 10KB+), for both create_post and update_post. article_file is ignored if article is provided directly."
+    },
+    "status": {
+      "type": "string",
+      "description": "DEPRECATED - create_post always publishes. Use agent_workspace for local drafts before publishing. This field is ignored.",
+      "enum": [
+        "publish"
+      ]
+    },
+    "postType": {
+      "type": "string",
+      "description": "Filter posts by status (for list_posts): all, published, draft. Default: published",
+      "enum": [
+        "all",
+        "published",
+        "draft"
+      ]
+    },
+    "post_id": {
+      "type": "string",
+      "description": "UUID of the post (required for get_postdetails, update_post, delete_post)"
+    },
+    "message": {
+      "type": "string",
+      "description": "New title for the post (for update_post)"
+    },
+    "public": {
+      "type": "integer",
+      "description": "Publication status: 1 for published, 0 for draft (for update_post)",
+      "enum": [
+        0,
+        1
+      ]
+    },
+    "channel_slug": {
+      "type": "string",
+      "description": "Channel slug. REQUIRED for create_post, create_channel, update_channel, remove_channel. Identifies the channel (e.g., 'techminute', 'technology', 'business'). Use list_channels action to see all available channels."
+    },
+    "imageslist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of image URLs (also accepts: images_list). Can be array or JSON string."
+    },
+    "videourl": {
+      "type": "string",
+      "description": "Video URL to create video post (for update_post)"
+    },
+    "audioslist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of audio URLs for music posts (also accepts: audios, audios_list, audio_url). Can be array or JSON string."
+    },
+    "featuredimage": {
+      "type": "string",
+      "description": "Featured image URL for the post (also accepts featured_image). Required for create_post, optional for update_post."
+    },
+    "country_code": {
+      "type": "string",
+      "description": "Two-letter country code. Default: us",
+      "default": "us"
+    },
+    "language": {
+      "type": "string",
+      "description": "Language code. Default: en",
+      "default": "en"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags for the post (boosts SEO and similar post discovery). Array of strings or comma-separated string (e.g. [\"AI\",\"startup\"] or \"AI,startup\"). Optional for create_post and update_post."
+    },
+    "typeid": {
+      "type": "string",
+      "description": "Post content type for create_post and update_post. Default: 'post' (or 'video'/'audio' derived from media). Valid types: blog, post, video, audio, music, gallery, podcast, audiobook, newsletter, tutorial.",
+      "enum": [
+        "blog",
+        "post",
+        "video",
+        "audio",
+        "music",
+        "gallery",
+        "podcast",
+        "audiobook",
+        "newsletter",
+        "tutorial"
+      ]
+    },
+    "slide_markers": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "description": "Audiobook slide transition timestamps in seconds (e.g., [0, 10, 28, 44, 52]). Only used with typeid='audiobook'. Each number marks when a slide image begins. If omitted, player auto-advances with equal time per slide."
+    },
+    "description": {
+      "type": "string",
+      "description": "Channel description (for create_channel, update_channel)."
+    },
+    "avatar_url": {
+      "type": "string",
+      "description": "Avatar image URL for the channel. REQUIRED for create_channel (generate via instant_media with aspect_ratio='square'). Optional for update_channel."
+    },
+    "bgphoto_url": {
+      "type": "string",
+      "description": "Banner/background photo URL for the channel. REQUIRED for create_channel (generate via instant_media with aspect_ratio='landscape_16_9'). Optional for update_channel."
+    },
+    "url": {
+      "type": "string",
+      "description": "REQUIRED for publish_app. The deployed app URL (e.g. https://my-app.nxagents.app). Must be a live, reachable URL."
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "App icon/thumbnail URL for publish_app. Square image recommended."
+    },
+    "category": {
+      "type": "string",
+      "description": "App category for publish_app (e.g. utility, tool, game, productivity, social)."
+    },
+    "auth_required": {
+      "type": "boolean",
+      "description": "For publish_app: if true, nxplace passes user identity token to the app via ?nxplace_token=... (Login with NXplace). Default: false."
+    },
+    "screenshots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Screenshot URLs for publish_app (optional)."
+    },
+    "app_id": {
+      "type": "string",
+      "description": "App UUID (for delete_app). Alternative to url for identifying the app to delete."
+    },
+    "videoslist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Direct MP4 video URLs (e.g. video_workflow output from instant_media). Published as-is \u2014 plays progressively, NO Cloudflare Stream generation. Use this for AI-generated videos. (videourl is the legacy single-URL field reserved for stream-upload semantics; avoid it for video_workflow output.)"
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
