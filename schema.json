@@ -60,7 +60,7 @@
     },
     "article_file": {
       "type": "string",
-      "description": "PREFERRED for long articles: workspace path to a markdown file (e.g. 'blogs/lion-rock-daily/2026-08-16-pm/content.md'). The skill reads the file server-side \u2014 use this instead of article whenever the content already exists as a workspace file (especially 10KB+), for both create_post and update_post. article_file is ignored if article is provided directly."
+      "description": "PREFERRED for long articles: workspace path to a markdown file (e.g. 'blogs/lion-rock-daily/2026-08-16-pm/content.md'). The skill reads the file server-side — use this instead of article whenever the content already exists as a workspace file (especially 10KB+), for both create_post and update_post. article_file is ignored if article is provided directly."
     },
     "status": {
       "type": "string",
@@ -204,7 +204,18 @@
       "items": {
         "type": "string"
       },
-      "description": "Direct MP4 video URLs (e.g. video_workflow output from instant_media). Published as-is \u2014 plays progressively, NO Cloudflare Stream generation. Use this for AI-generated videos. (videourl is the legacy single-URL field reserved for stream-upload semantics; avoid it for video_workflow output.)"
+      "description": "Direct MP4 video URLs (e.g. video_workflow output from instant_media). Published as-is — plays progressively, NO Cloudflare Stream generation. Use this for AI-generated videos. (videourl is the legacy single-URL field reserved for stream-upload semantics; avoid it for video_workflow output.)"
+    },
+    "post_file": {
+      "type": "string",
+      "description": "create_post ONLY: workspace path to a post.json file carrying the full payload (title, article_file, channel_slug, featuredimage, audiolist, typeid, tags, language, country_code...). PREFERRED over inline fields — write the file, read it back once, submit this path. Explicit call params override file values."
+    },
+    "audiolist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "create_post audio track URLs (canonical field; audioslist also accepted as alias). Music posts MUST attach the song here — renders the inline player."
     }
   },
   "required": [

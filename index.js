@@ -1069,6 +1069,33 @@ var DEFAULTS = {
  * Create a new post
  */
 function actionCreatePost(params) {
+  // post_file: full create_post payload from a workspace JSON file — same
+  // mechanism as article_file, but for the ENTIRE payload. The agent
+  // checkpoints post.json (title, article_file, featuredimage, audiolist,
+  // typeid, tags...) and submits the path instead of marshaling every
+  // field live — the regime where fields get dropped. The file is the
+  // BASE; explicitly-passed call params override it.
+  if (params.post_file) {
+    var pr = readFile(String(params.post_file));
+    if (!pr || !pr.ok) {
+      return { success: false, error: "Cannot read post_file '" + params.post_file + "': " + (pr && pr.error ? pr.error : "unknown error") };
+    }
+    var pspec;
+    try {
+      pspec = JSON.parse(String(pr.content));
+    } catch (e) {
+      return { success: false, error: "post_file '" + params.post_file + "' is not valid JSON: " + (e && e.message ? e.message : String(e)) + " — fix the file (watch trailing commas / unescaped quotes), then resubmit the same call" };
+    }
+    if (!pspec || typeof pspec !== "object" || Array.isArray(pspec)) {
+      return { success: false, error: "post_file must contain a JSON OBJECT (title, article_file, channel_slug, featuredimage, ...) — got " + (Array.isArray(pspec) ? "an array" : typeof pspec) };
+    }
+    for (var pk in pspec) {
+      if (pk === "action" || pk === "post_file") continue;
+      if (params[pk] === undefined) params[pk] = pspec[pk];
+    }
+    console.log("blogpost_service: post spec loaded from post_file '" + params.post_file + "' (" + String(pr.content).length + " bytes)");
+  }
+
   // Ensure registered
   var reg = ensureRegistered();
   if (!reg.success) {
@@ -1152,8 +1179,15 @@ function actionCreatePost(params) {
     payload.videourl = String(params.videourl);
   }
    {
-     var audL = asList(params.audioslist);
-     if (audL) payload.audioslist = audL;
+    // audio alias: audiolist (canonical — matches the rendered post
+    // document key) AND audioslist (historical wire spelling). Merge +
+    // dedupe so neither spelling silently drops the song.
+    var audL = asList(params.audioslist) || [];
+    var audL2 = asList(params.audiolist) || [];
+    for (var ai = 0; ai < audL2.length; ai++) {
+      if (audL.indexOf(audL2[ai]) === -1) audL.push(audL2[ai]);
+    }
+    if (audL.length) payload.audioslist = audL;
    }
    if (params.typeid) {
       payload.typeid = String(params.typeid);
@@ -1171,6 +1205,21 @@ function actionCreatePost(params) {
         message: resp.message || "Post created successfully",
         post: resp.post || {}
       };
+      // Semantic receipt warnings (non-fatal): catches a structurally-valid
+      // post missing its soul — agents should verify + update_post to
+      // attach the missing piece when a warning fires.
+      var warns = [];
+      var tId = String(params.typeid || "");
+      if (tId === "music" && !(payload.audioslist && payload.audioslist.length)) {
+        warns.push("typeid=music but NO audiolist attached — a song post without its audio. Attach via update_post (audiolist: [music_url]) if the track exists.");
+      }
+      if (tId === "video" && !(payload.videoslist && payload.videoslist.length)) {
+        warns.push("typeid=video but NO videoslist attached — a video post without its video. Attach via update_post (videoslist: [url]) if the video exists.");
+      }
+      if (warns.length) {
+        createResult.warnings = warns;
+        console.log("blogpost_service: create_post warnings - " + warns.join(" | "));
+      }
       if (dedup && dedup.stripped) {
         createResult.note = "The featured image was embedded at the top of the article body — removed it to avoid duplication (nxplace renders the featured image automatically).";
       }
@@ -1363,8 +1412,12 @@ function actionUpdatePost(postId, updates) {
     if (updates.videourl !== undefined && updates.videourl !== null) {
       payload.videourl = String(updates.videourl);
     }
-    var uAudL = asList(updates.audioslist);
-    if (uAudL) payload.audioslist = uAudL;
+    var uAudL = asList(updates.audioslist) || [];
+    var uAudL2 = asList(updates.audiolist) || [];
+    for (var ua = 0; ua < uAudL2.length; ua++) {
+      if (uAudL.indexOf(uAudL2[ua]) === -1) uAudL.push(uAudL2[ua]);
+    }
+    if (uAudL.length) payload.audioslist = uAudL;
   }
    if (updates.featuredimage !== undefined && updates.featuredimage !== null) {
      payload.featuredimage = String(updates.featuredimage);
@@ -1786,7 +1839,11 @@ switch (action) {
   
   // Post actions
    case "create_post":
+     // post_file + audiolist alias forwarded — a field whitelist here
+     // would silently drop them before actionCreatePost could merge.
      result = actionCreatePost({
+       post_file: input.post_file,
+       audiolist: input.audiolist,
        title: input.title,
        article: input.article,
        article_file: input.article_file,

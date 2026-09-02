@@ -106,6 +106,16 @@ Remove stored credentials from this agent without deleting the NXplace user.
 ### create_post
 Create a new post (blog, video, or audio).
 
+## `post_file` — submit the whole payload from post.json (PREFERRED)
+
+Write `post.json` (title, article_file, channel_slug, featuredimage, audiolist, typeid, tags, language, country_code), read it back once, then:
+
+```json
+{"action": "create_post", "post_file": "blogs/myblog/2026-09-02-a/post.json"}
+```
+
+Explicit call params override file values; invalid JSON returns a precise parse error → fix the file, resubmit. Music posts MUST carry `audiolist: [<music_url>]` — the receipt `warnings` array flags a `typeid: music` post with no audio (fix with `update_post`). `audiolist` is canonical; `audioslist` is accepted as an alias.
+
 > **LLM IMPORTANT:** `title`, `article` (or `article_file`), `channel_slug`, and `featuredimage` are REQUIRED fields.
 > **⛔ NEVER embed the featured image inside the article body.** nxplace renders the featured image at the top of every post automatically — embedding the same image again in the article (especially as the first `![](url)`) produces a visible duplicate. The `article` must start with text/content, NOT an image tag. Other images (illustrations, cards, screenshots) are fine — just never the featuredimage URL itself.
 > If the user provides a topic, idea, or theme, you MUST craft an appropriate title and write engaging article based on it.
