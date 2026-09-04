@@ -216,6 +216,14 @@
         "type": "string"
       },
       "description": "create_post audio track URLs (canonical field; audioslist also accepted as alias). Music posts MUST attach the song here — renders the inline player."
+    },
+    "lyrics_file": {
+      "type": "string",
+      "description": "create_post/update_post (music posts): workspace path to the full lyric sheet (e.g. 'blogs/mychannel/2026-09-04/lyrics.md'). PREFERRED over inline `lyrics` — read from disk server-side, never bloats the tool call (article_file pattern). Plain text with [Verse]/[Chorus] markers ideal. Servers without timed-lyrics support ignore the field harmlessly."
+    },
+    "lyrics": {
+      "type": "string",
+      "description": "Inline lyric sheet for the nxplace player's timed lyrics — for tiny corrections only (use lyrics_file for full sheets). 'none' = instrumental. Optional, default 'none'. Servers without the feature ignore it harmlessly."
     }
   },
   "required": [

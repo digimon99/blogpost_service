@@ -1004,6 +1004,24 @@ function actionLinkUser(params) {
  * never have to re-emit huge articles (30KB+) as tool-call arguments.
  * Usage: pass article_file instead of article. Returns {ok, content?, error?}.
  */
+function resolveLyricsFile(filePath) {
+  if (!filePath) {
+    return { ok: false, error: "lyrics_file path is empty" };
+  }
+  var r = readFile(String(filePath));
+  if (!r || !r.ok) {
+    return { ok: false, error: "Cannot read lyrics_file '" + filePath + "': " + (r && r.error ? r.error : "unknown error") };
+  }
+  var content = String(r.content || "");
+  if (content.trim().length < 40) {
+    return { ok: false, error: "lyrics_file '" + filePath + "' is too short (" + content.trim().length + " chars, minimum 40) — pass the FULL lyric sheet, or 'none' for instrumentals" };
+  }
+  if (content.length > 20480) {
+    content = content.slice(0, 20480);
+  }
+  return { ok: true, content: content, bytes: content.length };
+}
+
 function resolveArticleFile(filePath) {
   if (!filePath) {
     return { ok: false, error: "article_file path is empty" };
@@ -1069,6 +1087,7 @@ var DEFAULTS = {
  * Create a new post
  */
 function actionCreatePost(params) {
+  var lyrFileBytes = 0;
   // post_file: full create_post payload from a workspace JSON file — same
   // mechanism as article_file, but for the ENTIRE payload. The agent
   // checkpoints post.json (title, article_file, featuredimage, audiolist,
@@ -1192,6 +1211,30 @@ function actionCreatePost(params) {
    if (params.typeid) {
       payload.typeid = String(params.typeid);
     }
+   // lyrics: explicit lyric sheet for the nxplace player's timed-lyrics
+   // feature (servers without the feature ignore the field harmlessly).
+   // Default 'none' (instrumental / not provided). PREFERRED: lyrics_file
+   // (workspace path — read from disk so the sheet NEVER transits an LLM
+   // tool-call payload; same pattern as article_file). Inline `lyrics`
+   // works for tiny corrections. Also honored inside post_file JSON.
+   {
+    var lyrSrc = "";
+    var lyrFile = params.lyrics_file || payload.lyrics_file || "";
+    if (lyrFile) {
+      var lr = resolveLyricsFile(lyrFile);
+      if (!lr.ok) {
+        return { success: false, error: lr.error };
+      }
+      lyrSrc = lr.content;
+      lyrFileBytes = lr.bytes;
+    } else {
+      var lyrInline = params.lyrics !== undefined && params.lyrics !== null ? String(params.lyrics) : "";
+      if (!lyrInline && payload.lyrics !== undefined && payload.lyrics !== null) lyrInline = String(payload.lyrics);
+      if (lyrInline && lyrInline !== "none") lyrSrc = lyrInline;
+      else if (lyrInline === "none") lyrSrc = "none";
+    }
+    if (lyrSrc) payload.lyrics = lyrSrc;
+   }
    if (params.slide_markers !== undefined && Array.isArray(params.slide_markers)) {
      payload.slide_markers = params.slide_markers;
    }
@@ -1216,9 +1259,24 @@ function actionCreatePost(params) {
       if (tId === "video" && !(payload.videoslist && payload.videoslist.length)) {
         warns.push("typeid=video but NO videoslist attached — a video post without its video. Attach via update_post (videoslist: [url]) if the video exists.");
       }
+      // lyrics advisory (proceed + succeed — agent may update_post lyrics)
+      if (tId === "music" && !payload.lyrics && !params.lyrics_file) {
+        var art = String(params.article || "");
+        var artHasSheet = params.article_file || /(^|\n)#{2,3}[^\n]*lyric/i.test(art) || art.indexOf('<div class="lyrics">') !== -1;
+        if (artHasSheet) {
+          warns.push("typeid=music vocal song: lyrics found in the article but the explicit `lyrics` field was NOT passed — the player's timed lyrics will rely on article extraction. Recommended: update_post with lyrics: <full sheet> (plain text).");
+        } else {
+          warns.push("typeid=music but NO lyrics field passed — if this is a VOCAL song, attach the full lyric sheet via update_post (lyrics: <full plain-text sheet>) so the player can show timed lyrics. Instrumentals: pass lyrics 'none' to silence this advisory.");
+        }
+      }
       if (warns.length) {
         createResult.warnings = warns;
         console.log("blogpost_service: create_post warnings - " + warns.join(" | "));
+      }
+      if (typeof lyrFileBytes === "number" && lyrFileBytes > 0) {
+        createResult.lyrics = lyrFileBytes + " bytes inlined from " + (params.lyrics_file || payload.lyrics_file) + " — timed lyrics will use this sheet verbatim.";
+      } else if (payload.lyrics === "none") {
+        createResult.lyrics = "none (instrumental / no lyrics)";
       }
       if (dedup && dedup.stripped) {
         createResult.note = "The featured image was embedded at the top of the article body — removed it to avoid duplication (nxplace renders the featured image automatically).";
@@ -1412,6 +1470,15 @@ function actionUpdatePost(postId, updates) {
     if (updates.videourl !== undefined && updates.videourl !== null) {
       payload.videourl = String(updates.videourl);
     }
+    if (updates.lyrics_file !== undefined && updates.lyrics_file !== null && String(updates.lyrics_file) !== "") {
+      var ulr = resolveLyricsFile(String(updates.lyrics_file));
+      if (!ulr.ok) {
+        return { success: false, error: ulr.error };
+      }
+      payload.lyrics = ulr.content;
+    } else if (updates.lyrics !== undefined && updates.lyrics !== null && String(updates.lyrics) !== "") {
+      payload.lyrics = String(updates.lyrics);
+    }
     var uAudL = asList(updates.audioslist) || [];
     var uAudL2 = asList(updates.audiolist) || [];
     for (var ua = 0; ua < uAudL2.length; ua++) {
@@ -1463,7 +1530,26 @@ function actionUpdatePost(postId, updates) {
         success: true,
         message: resp.message || "Post updated successfully",
         post_id: resp.post_id || postId,
-        updated_fields: resp.updated_fields || []
+        // nxplace's update endpoint returns success/message only — no
+        // per-field echo. Report the fields WE sent as the change set
+        // (truthful: these are the values applied) instead of an empty
+        // array that reads like a silent no-op.
+        updated_fields: (function () {
+          var sent = [];
+          if (updates.title || updates.message) sent.push("title");
+          if (updates.article || updates.article_file) sent.push("article");
+          if (updates.featuredimage) sent.push("featuredimage");
+          if (updates.imageslist) sent.push("imageslist");
+          if (updates.videoslist) sent.push("videoslist");
+          if (updates.audiolist || updates.audioslist) sent.push("audiolist");
+          if (updates.lyrics || updates.lyrics_file) sent.push("lyrics");
+          if (updates.tags) sent.push("tags");
+          if (updates.typeid) sent.push("typeid");
+          if (updates.public !== undefined && updates.public !== null) sent.push("public");
+          if (updates.language) sent.push("language");
+          if (updates.country_code) sent.push("country_code");
+          return sent;
+        })()
       };
       if (updDedupNote) {
         updResult.note = "The featured image was embedded at the top of the article body — removed it to avoid duplication (nxplace renders the featured image automatically).";
@@ -1844,6 +1930,8 @@ switch (action) {
      result = actionCreatePost({
        post_file: input.post_file,
        audiolist: input.audiolist,
+       lyrics: input.lyrics,
+       lyrics_file: input.lyrics_file,
        title: input.title,
        article: input.article,
        article_file: input.article_file,
@@ -1918,6 +2006,9 @@ switch (action) {
       videoslist: input.videoslist,
       videourl: input.videourl,
       audioslist: input.audioslist,
+      audiolist: input.audiolist,
+      lyrics: input.lyrics,
+      lyrics_file: input.lyrics_file,
       slide_markers: input.slide_markers,
       tags: input.tags,
       featuredimage: input.featuredimage,

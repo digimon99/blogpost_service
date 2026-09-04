@@ -469,3 +469,14 @@ On "publish" command → verify pending_review → create_post → update draft
 // Admin: list all users registered via this app service
 {"action": "list_users"}
 ```
+
+## Music post lyrics (`lyrics` / `lyrics_file`)
+
+Music posts accept an explicit lyric sheet so the nxplace player can show timed, line-synced lyrics:
+
+- **Vocal songs — PREFERRED:** pass `lyrics_file`: the workspace path to your `lyrics.md` (which you wrote before generating the song). The skill reads it from disk and inlines it server-side; the sheet never transits the tool call (same anti-truncation pattern as `article_file` — big inline payloads are the known field-drop zone). Section markers `[Verse]`/`[Chorus]` are fine and encouraged.
+- **Inline `lyrics`**: for tiny corrections only.
+- **Instrumentals:** `lyrics: "none"` (or omit).
+- The same keys work in `post.json` (`"lyrics_file": "..."` preferred) and on `update_post` — attaching lyrics later re-triggers timing alignment server-side.
+- Receipt: echoes the inlined byte count; warns (post still succeeds) on a vocal music post without lyrics — fix via `update_post` with `lyrics_file`.
+- Compatibility: servers without timed-lyrics support ignore the field harmlessly.
